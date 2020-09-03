@@ -1,2 +1,7 @@
 git clone https://github.com/zhaoyangaiwushu/school.git
 
+//上传到git
+# git add .
+# git commit -m"init project"
+# git push
+
