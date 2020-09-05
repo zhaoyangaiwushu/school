@@ -2,3 +2,13 @@
 .gitignore
 .idea/
 school.iml
+"io\346\265\201/src/"
+jdk_10/src/
+jdk_11/src/
+jdk_14/src/
+jdk_8/src/
+jdk_9/src/
+"\345\217\215\345\260\204/src/"
+"\345\256\271\345\231\250/src/"
+"\346\263\233\345\236\213/src/"
+"\346\263\250\350\247\243/src/com/luftraveler/test/"
