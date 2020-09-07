@@ -1,5 +1,6 @@
 package com.luftraveler;
 
+import com.luftraveler.domain.Personss;
 import org.junit.Test;
 
 import java.util.*;
@@ -33,9 +34,9 @@ public class CollectionTest {
         Collection coll = new ArrayList();
         coll.add(123);
         coll.add(456);
-        Person p = new Person("Jerry",20);
+        Personss p = new Personss("Jerry",20);
         coll.add(p);
-        coll.add(new Person("Jerry",20));
+        coll.add(new Personss("Jerry",20));
         coll.add(new String("Tom"));
         coll.add(false);
 
@@ -43,7 +44,7 @@ public class CollectionTest {
         System.out.println(coll.contains(123));
         System.out.println(coll.contains(new String("Tom")));
         System.out.println(coll.contains(p));//true
-        System.out.println(coll.contains(new Person("Jerry",20)));//false -->true
+        System.out.println(coll.contains(new Personss("Jerry",20)));//false -->true
 
         //2.containsAll(Collection coll1):判断形参coll1中的所有元素是否都存在于当前集合中。
         Collection coll1 = Arrays.asList(123,4567);
@@ -56,13 +57,13 @@ public class CollectionTest {
         Collection coll = new ArrayList();
         coll.add(123);
         coll.add(456);
-        coll.add(new Person("Jerry",20));
+        coll.add(new Personss("Jerry",20));
         coll.add(new String("Tom"));
         coll.add(false);
         coll.remove(123);
         System.out.println(coll);//[456, Person{name='Jerry', age=20}, Tom, false]
 
-        coll.remove(new Person("Jerry",20));
+        coll.remove(new Personss("Jerry",20));
         System.out.println(coll);//[456, Tom, false]
 
         //4. removeAll(Collection coll1):差集：从当前集合中移除coll1中所有的元素。
@@ -95,7 +96,7 @@ public class CollectionTest {
         Collection coll = new ArrayList();
         coll.add(123);
         coll.add(456);
-        coll.add(new Person("Jerry",20));
+        coll.add(new Personss("Jerry",20));
         coll.add(new String("Tom"));
         coll.add(false);
 

@@ -1,5 +1,7 @@
 package com.luftraveler;
 
+import com.luftraveler.domain.Personss;
+
 import java.util.Objects;
 
 /**
@@ -49,7 +51,6 @@ public class Person {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         Person person = (Person) o;
-        return age == person.age &&
-                Objects.equals(name, person.name);
+        return age == person.age &&  Objects.equals(name, person.name);
     }
 }

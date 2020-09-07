@@ -1,10 +1,10 @@
 package com.luftraveler;
 
+import com.luftraveler.domain.Personss;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -130,7 +130,7 @@ List subList(int fromIndex, int toIndex):返回从fromIndex到toIndex位置的�
         list.add(123);
         list.add(456);
         list.add("AA");
-        list.add(new Person("Tom",12));
+        list.add(new Personss("Tom",12));
         list.add(456);
         //int indexOf(Object obj):返回obj在集合中首次出现的位置。如果不存在，返回-1.
         int index = list.indexOf(4567);
@@ -163,7 +163,7 @@ List subList(int fromIndex, int toIndex):返回从fromIndex到toIndex位置的�
         list.add(123);
         list.add(456);
         list.add("AA");
-        list.add(new Person("Tom",12));
+        list.add(new Personss("Tom",12));
         list.add(456);
 
         System.out.println(list);

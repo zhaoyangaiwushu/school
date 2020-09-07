@@ -1,5 +1,6 @@
 package com.luftraveler;
 
+import com.luftraveler.domain.Personss;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -38,7 +39,7 @@ public class IteratorTest {
         Collection coll = new ArrayList();
         coll.add(123);
         coll.add(456);
-        coll.add(new Person("Jerry",20));
+        coll.add(new Personss("Jerry",20));
         coll.add(new String("Tom"));
         coll.add(false);
 
@@ -65,7 +66,7 @@ public class IteratorTest {
         Collection coll = new ArrayList();
         coll.add(123);
         coll.add(456);
-        coll.add(new Person("Jerry",20));
+        coll.add(new Personss("Jerry",20));
         coll.add(new String("Tom"));
         coll.add(false);
 
