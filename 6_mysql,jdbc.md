@@ -77,8 +77,6 @@
 
 > 答: 存储过程可以有1个返回值或多个返回值,也可以没有返回值
 > 	  函数只能有1个返回。	
-> 	
-> 	
 
 ## 13.触发器的作用？
 
@@ -106,7 +104,17 @@
 > - 隔离性(isolation)   事务操作之间彼此独立和透明互不影响。事务独立运行。这通常使用锁来实现。一个事务处理后的结果，影响了其他事务，那么其他事务会撤回。事务的100%隔离，需要牺牲速度。
 > - 持久性(durability)  事务一旦提交，其结果就是永久的。即便发生系统故障，也能恢复
 
-## 16.事务隔离级别
+## 17数据库的并发问题
+
+> - 同时运行的多个事务, 当这些事务访问数据库中相同的数据时, 如果没有采取必要的隔离机制, 就会导致各种并发问题:
+>   - **脏读**: 一个事务可以读取另一个事务未提交的数据.
+>   - **不可重复读**: 一个事务可以读取另一个事务已提交的数据,单条记录前后不匹配.
+>   - 虚读（幻读） 一个事务可以读取另一个事务已提交的数据,读取的数据前后多了点或者少了点.
+> - 解决读问题： 设置事务隔离级别
+> - **数据库事务的隔离性**: 数据库系统必须具有隔离并发运行各个事务的能力, 使它们不会相互影响, 避免各种并发问题。
+> - 一个事务与其他事务隔离的程度称为隔离级别。数据库规定了多种事务隔离级别, 不同隔离级别对应不同的干扰程度, **隔离级别越高, 数据一致性就越好, 但并发性越弱。**
+
+## 18.事务隔离级别
 
 > - 未提交读(Read Uncommitted)：
 >   - 允许脏读，其他事务只要修改了数据，即使未提交，本事务也能看到修改后的数据值。
@@ -119,13 +127,54 @@
 > - 读写相互都会阻塞
 > - MySQL数据库(InnoDB引擎)默认使用可重复读（ Repeatable read) 隔离级别越高，性能越低。
 > - 一般情况下：脏读是不可允许的，不可重复读和幻读是可以被适当允许的。
->   - 查看隔离级别select @@tx_isolation;
->   - 设置隔离级别set session|global transaction isolation level {隔离级别};
+>   - 查看隔离级别 **select @@tx_isolation**;
+>   - 设置隔离级别 **set session|global transaction isolation level** {隔离级别};
 
-## 17.脏读、幻读、不可重复读
+# =======JDBC相关======
 
-> - 事务并发引起一些读的问题:
->   - 脏读         一个事务可以读取另一个事务未提交的数据.
->   - 不可重复读   一个事务可以读取另一个事务已提交的数据,单条记录前后不匹配.
->   - 虚读（幻读） 一个事务可以读取另一个事务已提交的数据,读取的数据前后多了点或者少了点.
->   - 解决读问题： 设置事务隔离级别
+# Java与SQL对应数据类型转换表
+
+| Java类型           | SQL类型                  |
+| ------------------ | ------------------------ |
+| boolean            | BIT                      |
+| byte               | TINYINT                  |
+| short              | SMALLINT                 |
+| int                | INTEGER                  |
+| long               | BIGINT                   |
+| String             | CHAR,VARCHAR,LONGVARCHAR |
+| byte   array       | BINARY  ,    VAR BINARY  |
+| java.sql.Date      | DATE                     |
+| java.sql.Time      | TIME                     |
+| java.sql.Timestamp | TIMESTAMP                |
+
+# 使用Statement操作数据表的弊端
+
+> - 存在的问题
+>
+>   - 存在拼串操作，繁琐
+>   - 存在SQL注入问题
+>
+>   
+>
+> - 问题案例
+>
+>   - ```java
+>     //注入的sql样本【SELECT user,password FROM user_table WHERE user = '1' or ' AND password = '=1 or '1' = '1'】
+>     String user = "1' or ";
+>     String password = "=1 or '1' = '1";
+>     String sql = "SELECT user,password FROM user_table WHERE user = '"+ user +"' AND password = '"+ password +"'";
+>     ```
+>
+> - 解决案例
+>
+>   - 要防范 SQL 注入，只要用 PreparedStatement(从Statement扩展而来) 取代 Statement 就可以了。
+>   - 使用PreparedStatement替换Statement实现的查询操作，解决Statement拼串和SQL注入问题
+
+# PreparedStatement与Statement对比
+
+> - 代码的可读性和可维护性高。
+> - **PreparedStatement 能最大可能提高性能：**
+>   - DBServer会对**预编译**语句提供性能优化。因为预编译语句有可能被重复调用，所以<u>语句在被DBServer的编译器编译后的执行代码被缓存下来，那么下次调用时只要是相同的预编译语句就不需要编译，只要将参数直接传入编译过的语句执行代码中就会得到执行。</u>
+>   - 在statement语句中,即使是相同操作但因为数据内容不一样,所以整个语句本身不能匹配,没有缓存语句的意义.事实是没有数据库会对普通语句编译后的执行代码缓存。这样<u>每执行一次都要对传入的语句编译一次。</u>
+>   - (语法检查，语义检查，翻译成二进制命令，缓存)
+> - PreparedStatement 可以防止 SQL 注入 
