@@ -1141,7 +1141,7 @@ names.add(“wilma”);
 
 　　Mybatis仅可以**编写针对ParameterHandler、ResultSetHandler、StatementHandler、Executor这4种接口的插件，Mybatis使用JDK的动态代理，为需要拦截的接口生成代理对象以实现接口方法拦截功能**，每当执行这4种接口对象的方法时，就会进入拦截方法，具体就是InvocationHandler的invoke()方法，当然，只会拦截那些你指定需要拦截的方法。
 
-　　实现Mybatis的Interceptor接口并复写intercept()方法，**然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，别忘了在配置文件中配置你编写的插件。**
+　　实现Mybatis的Interceptor接口并复写intercept()方法，然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，别忘了在配置文件中配置你编写的插件。
 
 
 
@@ -1353,3 +1353,271 @@ names.add(“wilma”);
 >     ```
 >
 > - 这些配置会告诉 MyBatis 去哪里找映射文件
+
+# 执行流程分析
+
+> **①**.通过classLoad类获取配置文件获取流信息。
+
+```java
+String resource = "mybatis-config.xml";
+InputStream inputStream = Resources.getResourceAsStream(resource);
+```
+
+> **②**.根据流信息创建SQLSessionFactory。
+>
+> - mybatis底层通过JDK的xPath以及w3c的document来解析xml。
+> - 首先解析mybatis-config下的configuration节点。
+> - 获取全局设置settings，数据库连接，缓存等等一大堆。
+> - 解析之后存储到configuration对应属性中。
+> - 解析mappers节点。
+> - 通过mappers配置中的mapper节点或者package节点得值获取mapper.xml的具体位置。
+> - 我一般用批量注册package 的name
+> - 解析所有mapper.xml并分别获取把你namespace,自定义返回值,公共sql,什么一些公共配置等等一些。
+> - 然后在解析你每一个mapper.xml中的select|insert|update|delete标签。
+> - 并把标签的属性resultType,resultMap,id,paramType,sql语句啊等等一些全部解析出来。
+> - 把mapper.xml解析之后通过一个addMappedStatement封装成MappedStatement。
+> - 然后把MappedStatement封装成一个map
+> - key就是你mapper的namespace+每个标签的id用.拼接。
+> - value就是你的MappedStatement 一个MappedStatement代表一个增删改查标签
+> - 最后返回DefaultSqlSessionFactory
+
+```java
+SqlSessionFactory sqlSessionFactory =  new SqlSessionFactoryBuilder().build(inputStream);
+```
+
+> ③.获取sqlSession对象
+>
+> - 根据你返回的SqlSession创建tx(数据库链接事务等等)。
+> - 根据execType(全局配置文件中的defaultExecutorType的值)创建Executor对象。
+> - 然后把tx(数据库信息传过去)以及sqlsession和参数传递进去
+> - Executor对象会创建一个StatementHandler对象（同时也会创建出ParameterHandler和ResultSetHandler）。
+> - 调用StatementHandler预编译参数以及设置参数值
+> - 使用ParameterHandler来给sql设置参数
+> - 调用StatementHandler的增删改查方法
+> - ResultSetHandler封装结果
+> - 上述四个对象每个创建的时候都有一个interceptorChain.pluginAll(parameterHandler)重新封装一下。
+> - 最后返回DefaultSqlSession 里面包含Executor。
+
+```java
+SqlSession openSession = sqlSessionFactory.openSession();
+```
+
+> ④.获取代理对象
+>
+> - mybatis 通过JDK动态代理的方式帮你生成一个代理对象。
+> - 拿到Mapper接口对应的MapperProxy。
+> - 动态代理可以在不修改代理对象代码的基础上,通过扩展代理类,进行一些功能的附加与增强。
+> - 通过Proxy.newProxyInstance()来实现。
+>   - 参数1：类加载器(Class Loader)
+>   - 参数2：需要实现的接口数组
+>   - 参数3：实现了InvocationHandler接口的类。
+>   - 就是你有个MapperProxy实现了InvocationHandler并重写了invoke方法
+>   - 然后你在invoke方法里就能获取参数,方法名什么的。
+> - 返回一个代理对象了MapperProxy
+
+```java
+EmployeeMapper mapper = openSession.getMapper(EmployeeMapper.class);
+```
+
+> ⑤.调用方法实现查询了呗.
+>
+> - MapperProxy里面有（DefaultSqlSession）。
+> - 自然就能获取MappedStatement的map了。
+> - 通过动态代理获取根据路径和方法名找到map中的MappedStatement。
+> - 取出里面的sql语句什么返回值之类的。
+> - 解析你sql语句吧你#{}换成?具体咋写没研究太多了。
+> - 然后就是jdbc那一套了PreparedStatement往里封装参数呗。
+> - 通过反射机制给你返回值里面扔值。
+> - 然后就查询了呗。
+> - 然后就关闭什么什么链接什么的我也不知道我猜的。
+
+```
+Employee employee = mapper.getEmpById(1);
+```
+
+
+
+# Cglib和jdk动态代理的区别
+
+## Cglib和jdk动态代理的区别？
+
+> - Jdk动态代理：利用拦截器（必须实现InvocationHandler）加上反射机制生成一个代理接口的匿名类，在调用具体方法前调用InvokeHandler来处理
+> - Cglib动态代理：利用ASM框架，对代理对象类生成的class文件加载进来，通过修改其字节码生成子类来处理
+
+## 什么时候用cglib什么时候用jdk动态代理？
+
+> 1、目标对象生成了接口 默认用JDK动态代理
+>
+> 2、如果目标对象使用了接口，可以强制使用cglib
+>
+> 3、如果目标对象没有实现接口，必须采用cglib库，Spring会自动在JDK动态代理和cglib之间转换
+
+## JDK动态代理和cglib字节码生成的区别？
+
+> 1、JDK动态代理只能对实现了接口的类生成代理，而不能针对类
+>
+> 2、Cglib是针对类实现代理，主要是对指定的类生成一个子类，覆盖其中的方法，并覆盖其中方法的增强，但是因为采用的是继承，所以该类或方法最好不要生成final，对于final类或方法，是无法继承的
+
+## Cglib比JDK快？
+
+> 1、cglib底层是ASM字节码生成框架，但是字节码技术生成代理类，在JDL1.6之前比使用java反射的效率要高
+>
+> 2、在jdk6之后逐步对JDK动态代理进行了优化，在调用次数比较少时效率高于cglib代理效率
+>
+> 3、只有在大量调用的时候cglib的效率高，但是在1.8的时候JDK的效率已高于cglib
+>
+> 4、Cglib不能对声明final的方法进行代理，因为cglib是动态生成代理对象，final关键字修饰的类不可变只能被引用不能被修改
+
+## Spring如何选择是用JDK还是cglib？
+
+> 1、当bean实现接口时，会用JDK代理模式
+>
+> 2、当bean没有实现接口，用cglib实现
+>
+> 3、可以强制使用cglib（在spring配置中加入<aop:aspectj-autoproxy proxyt-target-class=”true”/>）
+
+## Cglib原理
+
+> 动态生成一个要代理的子类，子类重写要代理的类的所有不是final的方法。在子类中采用方法拦截技术拦截所有的父类方法的调用，顺势织入横切逻辑，它比Java反射的jdk动态代理要快
+>
+> Cglib是一个强大的、高性能的代码生成包，它被广泛应用在许多AOP框架中，为他们提供方法的拦截
+>
+> 最底层的是字节码Bytecode,字节码是java为了保证依次运行，可以跨平台使用的一种虚拟指令格式
+>
+> 在字节码文件之上的是ASM，只是一种直接操作字节码的框架，应用ASM需要对Java字节码、class结构比较熟悉
+>
+> 位于ASM上面的是Cglib，groovy、beanshell，后来那个种并不是Java体系中的内容是脚本语言，他们通过ASM框架生成字节码变相执行Java代码，在JVM中程序执行不一定非要写java代码，只要能生成java字节码，jvm并不关系字节码的来源
+>
+> 位于cglib、groovy、beanshell之上的就是hibernate和spring AOP
+>
+> 最上面的是applications，既具体应用，一般是一个web项目或者本地跑一个程序、
+>
+> 使用cglib代码对类做代理？
+>
+> 使用cglib定义不同的拦截策略？
+>
+> 构造函数不拦截方法
+>
+> 用MethodInterceptor和Enhancer实现一个动态代理
+
+##  Jdk中的动态代理
+
+> JDK中的动态代理是通过反射类Proxy以及InvocationHandler回调接口实现的，但是JDK中所有要进行动态代理的类必须要实现一个接口，也就是说只能对该类所实现接口中定义的方法进行代理，这在实际编程中有一定的局限性，而且使用反射的效率也不高
+
+##  Cglib实现
+
+> 使用cglib是实现动态代理，不受代理类必须实现接口的限制，因为cglib底层是用ASM框架，使用字节码技术生成代理类，你使用Java反射的效率要高，cglib不能对声明final的方法进行代理，因为cglib原理是动态生成被代理类的子类
+
+## Cglib的第三方库提供的动态代理
+
+```
+ 1 /**
+ 2  * 动态代理：
+ 3  *  特点：字节码随用随创建，随用随加载
+ 4  *  作用：不修改源码的基础上对方法增强
+ 5  *  分类：
+ 6  *      基于接口的动态代理
+ 7  *      基于子类的动态代理
+ 8  *  基于子类的动态代理：
+ 9  *      涉及的类：Enhancer
+10  *      提供者：第三方cglib库
+11  *  如何创建代理对象：
+12  *      使用Enhancer类中的create方法
+13  *  创建代理对象的要求：
+14  *      被代理类不能是最终类
+15  *  newProxyInstance方法的参数：在使用代理时需要转换成指定的对象
+16  *      ClassLoader:类加载器
+17  *          他是用于加载代理对象字节码的。和被代理对象使用相同的类加载器。固定写法
+18  *      Callback：用于提供增强的代码
+19  *          他是让我们写如何代理。我们一般写一个该接口的实现类，通常情况加都是匿名内部类，但不是必须的。
+20  *          此接口的实现类，是谁用谁写。
+21  *          我们一般写的都是该接口的子接口实现类，MethodInterceptor
+22  */
+23 com.dynamic.cglib.Producer cglibProducer= (com.dynamic.cglib.Producer) Enhancer.create(
+24         com.dynamic.cglib.Producer.class,
+25         new MethodInterceptor() {
+26             /**
+27              *  执行被代理对象的任何方法都会经过该方法
+28              * @param obj
+29              * @param method
+30              * @param args
+31              *      以上三个参数和基于接口的动态代理中invoke方法的参数是一样的
+32              * @param proxy：当前执行方法的代理对象
+33              * @return
+34              * @throws Throwable
+35              */
+36             @Override
+37             public Object intercept(Object obj, Method method, Object[] args, MethodProxy proxy) throws Throwable {
+38                 Object returnValue=null;
+39                 Float money=(Float)args[0];
+40                 if("saleProduct".equals(method.getName())){
+41                    returnValue= method.invoke(producer,money*0.8f);
+42                 }
+43                 return returnValue;
+44             }
+45         }
+46 );
+47 cglibProducer.saleProduct(100.0f);
+```
+
+## JDK本身提供的动态代理实现
+
+```
+ 1 /**
+ 2          * 动态代理：
+ 3          *  特点：字节码随用随创建，随用随加载
+ 4          *  作用：不修改源码的基础上对方法增强
+ 5          *  分类：
+ 6          *      基于接口的动态代理
+ 7          *      基于子类的动态代理
+ 8          *  基于接口的动态代理：
+ 9          *      涉及的类：proxy
+10          *      提供者：Jdk官方
+11          *  如何创建代理对象：
+12          *      使用Proxy类中的newProxyInstance方法
+13          *  创建代理对象的要求：
+14          *      被代理类最少实现一个接口，如果没有则不能使用
+15          *  newProxyInstance方法的参数：在使用代理时需要转换成指定的对象
+16          *      ClassLoader:类加载器
+17          *          他是用于加载代理对象字节码的。和被代理对象使用相同的类加载器。固定写法
+18          *      Class[]：字节码数组
+19          *          它是用于让代理对象和被代理对象有相同方法。固定写法
+20          *      InvocationHandler：用于提供增强的代码
+21          *          他是让我们写如何代理。我们一般写一个该接口的实现类，通常情况加都是匿名内部类，但不是必须的。
+22          *          此接口的实现类，是谁用谁写。
+23          */
+24        IProducer proxyProducer=  (IProducer) Proxy.newProxyInstance(
+25                 producer.getClass().getClassLoader(),
+26                 producer.getClass().getInterfaces(),
+27 
+28                new InvocationHandler() {
+29                    /**
+30                     * 作用：执行被代理对象的任何接口方法都会经过该方法
+31                     * @param proxy  代理对象的引用
+32                     * @param method 当前执行的方法
+33                     * @param args   当前执行方法所需的参数
+34                     * @return       和被代理对象有相同返回值
+35                     * @throws Throwable
+36                     */
+37                     @Override
+38                     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+39 //                        提供增强的代码
+40 //                        1、获取方法执行的参数
+41                         Object returnValue=null;
+42                         Float money=(Float)args[0];
+43                         if("saleProduct".equals(method.getName())){
+44                            returnValue= method.invoke(producer,money*0.8f);
+45                         }
+46                         return returnValue;
+47                     }
+48                 }
+49         );
+```
+
+## JDK和Cglib的区别：
+
+|                  | Cglib                                                        | JDK                                                          |
+| ---------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 是否提供子类代理 | 是                                                           | 否                                                           |
+| 是否提供接口代理 | 是（可强制）                                                 | 是                                                           |
+| 区别             | 必须依赖于CGLib的类库，但是它需要类来实现任何接口代理的是指定的类生成一个子类，覆盖其中的方法 | 实现InvocationHandler 使用Proxy.newProxyInstance产生代理对象 被代理的对象必须要实现接口 |
