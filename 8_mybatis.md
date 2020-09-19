@@ -1143,9 +1143,9 @@ names.add(“wilma”);
 
 　　实现Mybatis的Interceptor接口并复写intercept()方法，然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，别忘了在配置文件中配置你编写的插件。
 
+# mybatis怎么调用存储过程
 
-
-
+select便签中的statementType = “CALLABLE”
 
 # mybatis学习知识点
 
@@ -1249,6 +1249,8 @@ names.add(“wilma”);
 >   - **结果集处理器**   返回值处理的
 > -  **StatementHandler** (prepare, parameterize, batch, update, query)
 >   - **sql 语句处理器**
+
+
 
 ## 4.mybatis可以支持多环境配置
 
