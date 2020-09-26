@@ -607,6 +607,84 @@
 > FROM employees;
 > ```
 
+## while循环
+
+```sql
+-- 从1加到十
+delimiter $ 
+create procedure pro_test8(n int) 
+begin 
+	declare total int default 0; 
+	declare num int default 1; 
+	while num<=n do 
+		set total = total + num; 
+		set num = num + 1; 
+	end while; 
+	select total; 
+end$ 
+delimiter ;
+
+CALL pro_test8(10)
+```
+
+## repeat结构
+
+> 有条件的循环控制语句, 当满足条件的时候退出循环 。
+>
+> while 是满足条件才执行，repeat 是满足条件就退出循环。
+>
+> ```sql
+> -- 从1加到十
+> delimiter $ 
+> create procedure pro_test10(n int) 
+> begin 
+> 	declare total int default 0; 
+> 	repeat 
+> 		set total = total + n; 
+> 		set n = n - 1; 
+> 		-- 如果等于0退出循环
+> 		until n=0  
+> 	end repeat; 
+> 	select total ; 
+> end$ 
+> delimiter ;
+> 
+> CALL pro_test10(10)
+> ```
+
+## loop循环-LEAVE退出循环
+
+> - leave语句:
+>
+>   - 用来从标注的流程构造中退出，通常和 BEGIN ... END 或者循环一起使用。
+>
+>   -  LOOP 和 LEAVE 的简单例子 , 退出循环：
+>
+>   - ```sql
+>     delimiter $ 
+>     CREATE PROCEDURE pro_test11(n int) 
+>     BEGIN 
+>     	declare total int default 0; 
+>     	
+>     	ins: LOOP  -- 开始循环
+>     		IF n <= 0 then 
+>     			leave ins;  -- 如果小于等于0对出循环
+>     		END IF; 
+>     		set total = total + n; 
+>     		set n = n - 1; 
+>     	END LOOP ins; 
+>     	
+>     	select total; 
+>     END$ 
+>     
+>     delimiter ;
+>     
+>     
+>     CALL pro_test11(10)
+>     ```
+
+
+
 # 14.分组查询
 
 > 语法：select 查询列表  from 表【where 筛选条件】group by 分组的字段【order by 排序的字段】;
@@ -1363,11 +1441,132 @@ SHOW CREATE PROCEDURE  myp2;
 
 > 答:索引其实是一种数据结构，能够帮助我们快速的检索数据库中的数据,可以提高MySQL的检索速度
 
-## 4.索引具体采用的哪种数据类型和数据结构呢？
+## 4.索引的优缺点
 
-> mysql索引类型:普通索引,唯一索引,全文搜索的索引,空间索引
+> 优势:
 >
-> MySQL索引方式有两种:Hash,B+Tree(InnoDB引擎，默认的是B+树)    
+> - 类似于书籍的目录索引，提高数据检索的效率，降低数据库的IO成本。
+> - 通过索引列对数据进行排序，降低数据排序的成本，降低CPU的消耗。
+>
+> 劣势:
+>
+> -  索引是一张表,保存了主键与索引字段,索引列也是要占用空间的。
+> - 虽然索引大大提高了查询效率，同时却也降低更新表的速度，如对表进行INSERT、UPDATE、DELETE。因为更新表时，MySQL 不仅要保存数据，还要保存一下索引文件每次更新添加了索引列的字段，都会调整因为更新所带来的键值变化后的索引信息。
+
+## 5.索引的具体数据类型和数据结构
+
+> InnoDB:
+>
+> - mysql索引类型: 
+>   - 1） 普通索引[Normal] ：即一个索引只包含单个列，一个表可以有多个单列索引。
+>   - 2） 唯一索引[Unique] ：索引列的值必须唯一，但允许有空值。
+>   - 3） 复合索引 ：即一个索引包含多个列。
+>   - 4）全文搜索的索引[Full Text]。
+>   - 5）空间索引[SPATIAL]。
+> - MySQL索引方式有两种:Hash,B+Tree(InnoDB引擎，默认的是B+树)    
+
+## 6.索引基本操作
+
+环境准备：
+
+```sql
+-- 创建数据库
+create database demo_01 default charset=utf8mb4;
+```
+
+---
+
+```sql
+-- 创建表
+CREATE TABLE `city` (
+	`city_id` INT ( 11 ) NOT NULL AUTO_INCREMENT,
+	`city_name` VARCHAR ( 50 ) NOT NULL,
+	`country_id` INT ( 11 ) NOT NULL,
+	PRIMARY KEY ( `city_id` ) 
+) ENGINE = INNODB DEFAULT CHARSET = utf8;
+
+
+CREATE TABLE `country` ( 
+	`country_id` INT ( 11 ) NOT NULL AUTO_INCREMENT, 
+	`country_name` VARCHAR ( 100 ) NOT NULL, 
+	PRIMARY KEY ( `country_id` ) 
+) ENGINE = INNODB DEFAULT CHARSET = utf8;
+```
+
+---
+
+```sql
+-- 给城市表插入数据
+insert into `city` (`city_id`, `city_name`, `country_id`) values(1,'西安',1); 
+insert into `city` (`city_id`, `city_name`, `country_id`) values(2,'NewYork',2); 
+insert into `city` (`city_id`, `city_name`, `country_id`) values(3,'北京',1); 
+insert into `city` (`city_id`, `city_name`, `country_id`) values(4,'上海',1); 
+-- 给国家表插入数据
+insert into `country` (`country_id`, `country_name`) values(1,'China'); 
+insert into `country` (`country_id`, `country_name`) values(2,'America'); 
+insert into `country` (`country_id`, `country_name`) values(3,'Japan'); 
+insert into `country` (`country_id`, `country_name`) values(4,'UK');
+```
+
+---
+
+创建索引基本语法：
+
+---
+
+> ```sql
+> --索引类型:
+> CREATE [UNIQUE[唯一索引]|FULLTEXT[全文索引]|SPATIAL[空间索引]] INDEX index_name 
+> --指定索引类别默认b+tree
+> [USING index_type] 
+> --要给那些字段添加索引
+> ON tbl_name(index_col_name,...)  
+> 
+> index_col_name : column_name[(length)][ASC | DESC]
+> --创建索引
+> CREATE INDEX idx_city_name ON city(city_name)
+> --查看索引
+> show index from city;
+> --删除索引
+> DROP INDEX idx_city_name ON city;
+> ```
+
+## 7.索引设计原则
+
+> - 对查询频次较高,且数据量比较大的表建立索引。
+>
+> - 索引字段的选择,最佳候选列应当从where子句的条件中提取,如果where子句中的组合比较多,那么应当挑选最常用、过滤效果最好的列相互组合。
+> - 使用唯一索引,区分度越高,使用索引的效率越高。
+> - 索引不易过多。
+>   - 因为如过对表进行INSERT、UPDATE、DELETE操作时候。
+>   - MySQL 不仅要保存数据，还要保存一下索引文件每次更新添加了索引列的字段。
+>   - 调整因为更新所带来的键值变化后的索引信息。
+>   - 另外索引过多的话，MySQL也会犯选择困难病。
+>   - 虽然最终仍然会找到一个可用的索引，但无疑提高了选择的代价。
+> - 使用短索引，索引创建之后也是使用硬盘来存储的，因此提升索引访问的I/O效率，也可以提升总体的访问效率。假如构成索引的字段总长度比较短，那么在给定大小的存储块内可以存储更多的索引值，相应的可以有效的提升MySQL访问索引的I/O效率。
+> - 利用最左前缀，N个列组合而成的组合索引，那么相当于是创建了N个索引，如果查询时where子句中使用了组成该索引的前几个字段，那么这条查询SQL可以利用组合索引来提升查询效率。
+
+## 8.ALTER命令
+
+```sql
+-- 参数说明
+-- tb_name 数据表名称
+-- index_name 索引的名称
+-- column_list 字段的名称
+
+-- --该语句添加一个主键，这意味着索引值必须是唯一的，且不能为NULL 2). 
+alter table tb_name add primary key(column_list); 
+
+-- 这条语句创建索引的值必须是唯一的（除了NULL外，NULL可能会出现多次） 3). 
+alter table tb_name add unique index_name(column_list); 
+
+-- 添加普通索引， 索引值可以出现多次。 4). 
+alter table tb_name add index index_name(column_list); 
+
+-- 该语句指定了索引为FULLTEXT， 用于全文索引
+alter table tb_name add fulltext index_name(column_list); 
+
+```
 
 ## 5.B+Tree索引和Hash索引区别？
 
@@ -1398,7 +1597,165 @@ SHOW CREATE PROCEDURE  myp2;
 > 答:①.一条SQL语句的查询,可以有不同的执行方案,至于最终选择哪种方案,需要通过优化器进行选择,选择执行成本最低的方案。
 >   ②.在一条单表查询语句真正执行之前,MySQL的查询优化器会找出执行该语句所有可能使用的方案,对比之后找出成本最低的方案   
 
-## datetime和timestamp的区别
+## 视图
+
+> - 视图（View）是一种虚拟存在的表。
+>
+> - 视图并不在数据库中实际存在，行和列的数据来自定义视图的查询中使用的表，
+>
+> - 意思就是SELECT语句执行后返回的结果集使用视图时动态生成
+>
+> - 好处：简单，安全，数据独立
+>
+> - 作用：
+>
+>   - 简化用户的操作
+>   - 使用户能以多种角度看待同一数据
+>   - 对重构数据库提供了一定程度的逻辑独立性
+>   - 对机密数据提供安全保护
+>   - 更清晰的表达查询
+>
+> - 创建视图
+>
+>   - ```sql
+>     --其中属性列名全部指定或全部省略
+>     create view <视图名> ([<列名>[,<列名>]…]) as 子查询 [with check option];
+>     -----------------------city_country_view-----------------------------
+>     create view city_country_view (city_id,city_name,country_id,country_name)
+>     as
+>     select t.*,c.country_name from country c , city t;
+>     ------------------------city_country_view2----------------------------
+>     create view city_country_view2 
+>     as
+>     select t.*,c.country_name from country c , city t;
+>     ```
+>
+> - 删除视图
+>
+>   - ```sql
+>     DROP VIEW city_country_view ; 
+>     ```
+>
+> - 查看视图
+>
+>   - ```sql
+>     SELECT * FROM city_country_view2
+>     ```
+>
+> - 视图和表的区别
+>
+>   - 视图是已经编译好了的sql，表不是
+>   - 视图没有实际的物理存储记录，表有
+>   - 视图是逻辑概念，表可以进行修改
+>   - 视图是我们查看表的方法，视图不让用户接触数据表，用户也就不知道表结构
+>   - 视图建立、删除只影响视图本身，不影响表
+
+## 9.什么是存储过程？用什么来调用？
+
+> - 存储过程是一个预编译并存储在数据库的SQL语句。
+>
+> - 就是我只需创建一次，以后在该程序中就可以调用多次。
+>
+> - ```sql
+>   --创建
+>   CREATE PROCEDURE 存储过程名(参数列表)
+>   BEGIN
+>   	存储过程体（一组合法的SQL语句）;
+>   END;
+>   
+>   --调用
+>   CALL 存储过程名(参数列表);
+>   
+>   -- 查询db_name数据库中的所有的存储过程
+>   select name from mysql.proc where db='db_name';
+>   
+>   -- 查询存储过程的状态信息 
+>   show procedure status; 
+>   
+>   -- 查询某个存储过程的定义 
+>   show create procedure test.pro_test1;
+>   
+>   --删除存储过程
+>   DROP PROCEDURE [IF EXISTS] sp_name ；
+>   ```
+
+## 10.存储过程的优缺点？
+
+> -  优点：
+>   - 存储过程是预编译过的，执行效率高。
+>   - 存储过程直接存放于数据库中，通过存储过程名直接调用，减少网络通讯。 
+>   - 安全性高，执行存储过程需要有一定权限的用户。
+>   - 存储过程可以重复使用，可减少数据库开发人员的工作量。
+> - 缺点：移植性差   
+
+## 11.存储过程与函数的区别
+
+> - 存储过程可以有1个返回值或多个返回值,也可以没有返回值函数只能有1个返回。	
+> - 存储过程声明用procedure，函数用function。
+> - 存储过程通过in/out来返回值，函数可以in/out/return来返回值。
+> - 如果只有一个返回值，用存储函数，否则，一般用存储过程。
+
+## 12.传递参数in/out/inout
+
+> - IN : 该参数可以作为输入，也就是需要调用方传入值 , 默认 
+> - OUT: 该参数作为输出，也就是该参数可以作为返回值 
+> - INOUT: 既可以作为输入参数，也可以作为输出参数 
+
+## 13.mysql变量
+
+> - 系统变量:
+>
+>   - 全局变量前边加个@,会话变量
+>
+> - 自定义变量:
+>
+>   - 用户变量,局部变量  
+>
+> - 扩展:
+>
+>   - 局部变量DECLARE :该变量的作用范围只能在 BEGIN…END 块中
+>
+>   - ```sql
+>     -- DELIMITER  关键字用来声明SQL语句的分隔符。
+>     -- 告诉MySQL解释器，该段命令是否已经结束了，mysql是否可以执行了。
+>     -- 默认情况下，delimiter是分号;。
+>     -- 在命令行客户端中，如果有一行命令以分号结束，那么回车后，mysql将会执行该命令
+>     DELIMITER $
+>     CREATE PROCEDURE pro_test3 () BEGIN
+>     -- 	创建局部变量
+>     	DECLARE NAME VARCHAR ( 20 );
+>     -- 	赋值
+>     	SET NAME = 'MYSQL';
+>     	SELECT NAME;
+>     END $
+>     DELIMITER;
+>     
+>     -- 也可以通过select ... into 方式进行赋值操作 :
+>     DELIMITER $
+>     CREATE PROCEDURE pro_test5 () BEGIN
+>     -- 	创建局部变量
+>     	declare countnum int;
+>     -- 	赋值
+>     	select count(*) into countnum from city;
+>     	select countnum;
+>     END $
+>     DELIMITER;
+>     
+>     
+>     -- --调用
+>     CALL pro_test3()
+>     CALL pro_test5()
+>     ```
+>
+>     
+
+## 14.触发器的作用？
+
+> 答:触发器是与表有关的数据库对象在 insert/update/delete 之前或之后,
+>   触发并执行触发器中定义的SQL语句集合
+>   触发器还只支持行级触发，不支持语句级触发
+
+## 15.datetime和timestamp的区别
 
 > 1、Timestamp支持的时间范围较小，取值范围：19700101080001——2038年的某个时间
 >
@@ -1408,40 +1765,19 @@ SHOW CREATE PROCEDURE  myp2;
 >
 > 4、timestamp的属性受Mysql版本和SQLMode的影响很大
 
-## 9.mysql变量
+## 16.存储引擎
 
-> 答:系统变量:全局变量,会话变量
->   自定义变量:用户变量,局部变量  
+> InnoD,MyISAM,MEMORY,MERGE,NDB
+>
+> - 支持事务和外键选择innodb，不需要事务和外键可以考虑MyISAM；
+> - innodb支持外键
+> - 如果以select和insert操作为主,只有很少的更新和删除操作，并且对事务的完整性、并发
+>   性要求不是很高，可以考虑MyISAM，
+> - 除了插入和查询意外，还包含很多的更新、删除操作，请使用InnoDB。
+> - MyISAM恢复困难；
+> - MySQL5.5默认Innodb引擎，如果你不知道用什么，那就用InnoDB，至少不会差。
 
-## 10.什么是存储过程？用什么来调用？
-
-> 答:存储过程是一个预编译并存储在数据库的SQL语句，就是我只需创建一次，以后在该程序中就可以调用多次
->  CREATE PROCEDURE 存储过程名(参数列表)
->  BEGIN
-> 		存储过程体（一组合法的SQL语句）;
->  END;
->  CALL 存储过程名(参数列表);
-
-## 11.存储过程的优缺点？
-
-> 答: 优点：存储过程是预编译过的，执行效率高。
-> 		 存储过程直接存放于数据库中，通过存储过程名直接调用，减少网络通讯。
-> 		 安全性高，执行存储过程需要有一定权限的用户。
-> 		 存储过程可以重复使用，可减少数据库开发人员的工作量。
->    缺点：移植性差   
-
-## 12.存储过程与函数的区别
-
-> 答: 存储过程可以有1个返回值或多个返回值,也可以没有返回值
-> 	  函数只能有1个返回。	
-
-## 13.触发器的作用？
-
-> 答:触发器是与表有关的数据库对象在 insert/update/delete 之前或之后,
->   触发并执行触发器中定义的SQL语句集合
->   触发器还只支持行级触发，不支持语句级触发
-
-## 14.什么是 内连接、外连接、交叉连接、笛卡尔积等?
+## 17.什么是 内连接、外连接、交叉连接、笛卡尔积等?
 
 > 答:内连接: 匹配的就链接
 >   左外连接: 包含左边表的全部行，以及右边表中全部匹配的行（不管右边的表中是否存在与它们匹配的行）
@@ -1449,19 +1785,19 @@ SHOW CREATE PROCEDURE  myp2;
 >   全外连接: 包含左、右两个表的全部行，不管另外一边的表中是否存在与它们匹配的行。
 >   交叉连接: 生成笛卡尔积－它不使用任何匹配或者选取条件，而是直接将一个数据源中的每个行与另一个数据源的每个行都一一匹配
 
-## 15.什么是事务
+## 18.什么是事务
 
 > 答:一个或一组sql语句组成一个执行单元，这个执行单元要么全部执行，要么全部不执行。
 >   事务又分 隐式事务(如insert、update、delete语句),显式事务(SET autocommit=0)
 
-## 16.事务的四个特性(ACID)
+## 19.事务的四个特性(ACID)
 
 > - 原子性(atomicity)   事务中所有操作,要么全成功;要么撤回到执行事务之前的状态
 > - 一致性(consistency) 一个事务中不管涉及到多少个操作,都必须保证事务执行之前和之后数据都是正确的。如果一个事务在执行的过程中，其中某一个或某几个操作失败了，则必须进行回滚。
 > - 隔离性(isolation)   事务操作之间彼此独立和透明互不影响。事务独立运行。这通常使用锁来实现。一个事务处理后的结果，影响了其他事务，那么其他事务会撤回。事务的100%隔离，需要牺牲速度。
 > - 持久性(durability)  事务一旦提交，其结果就是永久的。即便发生系统故障，也能恢复
 
-## 17数据库的并发问题
+## 20.数据库的并发问题
 
 > - 同时运行的多个事务, 当这些事务访问数据库中相同的数据时, 如果没有采取必要的隔离机制, 就会导致各种并发问题:
 >   - **脏读**: 一个事务可以读取另一个事务未提交的数据.
@@ -1470,9 +1806,8 @@ SHOW CREATE PROCEDURE  myp2;
 > - 解决读问题： 设置事务隔离级别
 > - **数据库事务的隔离性**: 数据库系统必须具有隔离并发运行各个事务的能力, 使它们不会相互影响, 避免各种并发问题。
 > - 一个事务与其他事务隔离的程度称为隔离级别。数据库规定了多种事务隔离级别, 不同隔离级别对应不同的干扰程度, **隔离级别越高, 数据一致性就越好, 但并发性越弱。**
-> - 设置事务的隔离级别
 
-## 18.事务隔离级别
+## 21.事务隔离级别
 
 > - 未提交读(Read Uncommitted)：
 >   - 允许脏读，其他事务只要修改了数据，即使未提交，本事务也能看到修改后的数据值。
@@ -1487,6 +1822,10 @@ SHOW CREATE PROCEDURE  myp2;
 > - 一般情况下：脏读是不可允许的，不可重复读和幻读是可以被适当允许的。
 >   - 查看隔离级别 **select @@tx_isolation**;
 >   - 设置隔离级别 **set session|global transaction isolation level** {隔离级别};
+
+## 22.sql优化
+
+
 
 # =======JDBC相关======
 
