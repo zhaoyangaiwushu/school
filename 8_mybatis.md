@@ -41,6 +41,847 @@
 > - mybatis无法做到数据库无关性,如果需要实现支持多种数据库的软件,则需要自定义多套sql映射文件,工作量大。
 > - Hibernate对象/关系映射能力强,数据库无关性好,适合关系模型要求高的软件,可以节省很多代码，提高效率。
 
+# 如何获取自动生成的(主)键值?
+
+> > mysql 在insert标签中添加属性。
+> >
+> >  **使用自增主键获取主键值策略**[useGeneratedKeys="true"] 。
+> >
+> > **指定对应的主键属性 **[keyProperty="id"] 你要封装到那个属性。
+> >
+> > 对象.getId()就可以了。
+> >
+> > oracle 忘了 不会 不总用
+>
+> ```java
+> /**
+>   * parameterType：参数类型，可以省略，
+>   * 获取自增主键的值：
+>   *    mysql支持自增主键，自增主键值的获取，mybatis也是利用statement.getGenreatedKeys()；
+>   *    useGeneratedKeys="true"；使用自增主键获取主键值策略
+>   *	   keyProperty；指定对应的主键属性，也就是mybatis获取到主键值以后，将这个值封装给javaBean的哪个属性
+>   *    databaseId:厂商编号
+>   */
+> <insert id="addEmp" parameterType="com.luftraveler.mybatis.mapper.bean.Employee"
+> 			useGeneratedKeys="true" keyProperty="id" databaseId="mysql">
+> 	insert into tbl_employee(last_name,email,gender) values(#{lastName},#{email},#{gender})
+> </insert>
+>     
+>     
+> //获取主键id
+> EmployeeMapper mapper = openSession.getMapper(EmployeeMapper.class);
+> Employee em = new Employee(null,"第33333个","11111@qq.com","111");
+> mapper.addEmp(em);
+> System.out.println(em);
+> ```
+
+# #{}和${}的区别是什么？
+
+#{}:是预编译处理,会将sql中的#{}替换为?号,防止sql注入;
+
+${}是字符串替换,就是把${}替换成变量的值。会有安全问题；
+
+# 实体类中属性名和表中的字段名不一样 ,怎么办 ？
+
+> - 方式一：通过设置sql字段的别名,让字段名的别名和实体类的属性名一致。
+>
+> - ```java
+>   <select id="selectorder" parametertype="int" resultetype="me.gacl.domain.order">
+>       select order_id as id,order_no as orderno form orders where order_id=#{id}
+>   </select>
+>   ```
+
+> - 第2种： 通过<resultMap>来映射字段名和实体类属性名的一一对应的关系。
+>
+> - ```java
+>   <resultMap type="com.agzy.day2.bean.Employee" id="MySimpleEmp">
+>       //column：指定哪一列,
+>       //property：指定对应的javaBean属性
+>       <id column="id" property="id"/>
+>       <result column="last_name" property="lastName"/>
+>       <result column="email" property="email"/>
+>       <result column="gender" property="gender"/>
+>   </resultMap>
+>   ```
+
+# 模糊查询like语句该怎么写?
+
+> - 在Java代码中添加sql通配符
+>
+>   - ```java
+>     //xml
+>     <select id="getEmpByName">
+>         select * from foo where bar like #{value}
+>     </select>
+>     //java
+>     list<name> names = mapper.getEmpByName("%smi%");
+>     ```
+>
+> - 在sql语句中拼接通配符,会引起sql注入
+>
+>   - ```java
+>     //xml
+>     <select id="selectlike">
+>         select * from foo where bar like "%"#{value}"%"
+>     </select>
+>     //java
+>     list<name> names = mapper.getEmpByName("smi");
+>     ```
+
+# 在mapper中如何传递多个参数?
+
+> 第一种 dao中有多个参数 xml中对应使用#{0}，#{1}..
+>
+> ```java
+> //dao
+> UserselectUser(String name,String area);
+> //xml
+> <select id="selectUser"resultMap="BaseResultMap">  
+>  select * from user_user_t where user_name = #{0} and user_area=#{1}  
+> </select> 
+> ```
+
+ 
+
+> 第二种： 使用 @param 注解: xml直接使用参数名
+>
+> ```java
+> //dao
+> UserselectUser(@param("name") String name,@param("area") String area);
+> //xml
+> <select id="selectUser"resultMap="BaseResultMap">  
+>  select * from user_user_t where user_name = #{name} and user_area=#{area}  
+> </select> 
+> ```
+
+
+
+> 第三种：多个参数封装成map xml中直接使用key
+>
+> ```java
+> //dao
+> public Employee selectUser(Map<String,Object> map);
+> //xml
+> <select id="selectUser" resultType="employee">
+> 	select * from user_user_t where user_name = #{name} and user_area=#{area} 
+> </select>
+> ```
+
+
+
+> 第四种:pojo xml中直接属于属性名称
+>
+> ```java
+> //dao
+> public Employee selectUser(Employee employee);
+> //xml
+> <select id="selectUser" resultType="employee">
+> 	select * from user_user_t where user_name = #{name} and user_area=#{area} 
+> </select>
+> ```
+
+# parameterType
+
+> 用于指定传入参数的类型
+>
+> - **单个参数**：mybatis不会做特殊处理
+>
+> - **使用方式**：#{参数名/任意名}：取出参数值
+>
+> - ---
+>
+> - **多个参数**：mybatis会做特殊处理。
+>
+> - 封装成 一个map<key[**参数的索引**arg0...argN],value[**传入的参数值**]>。
+>
+> - **使用方式**：#{arg0/param1}~#{arg100/param100}：取出参数值
+>
+> - ---
+>
+> - **命名参数**：为参数使用@Param起一个名字，MyBatis就会将这些参数封装进map中，key就是我们自己指定的名字
+>
+> - **使用方式**：#{@Param里的名|param1}：取出参数值
+>
+> - ---
+>
+> - **POJO**：如果多个参数正好是我们业务逻辑的数据模型，我们就可以直接传入pojo；
+>
+> - **使用方式**：#{属性名}：取出传入的pojo的属性值	
+>
+> - ---
+>
+> - **Map**：如果多个参数不是业务模型中的数据，没有对应的pojo，不经常使用，为了方便，我们也可以传入map
+>
+> - **使用方式**：#{key}：取出map中对应的值
+>
+> - ---
+>
+> - **Collection**类型或者**数组**：也会特殊处理。也是把传入的list或者数组封装在map中。
+>
+> - **使用方式**：
+>
+>   - key：Collection（collection）|  List (list) |  数组 (array)  #{collection|list|array}
+>   - 不行就这个@Param("ids") 指定什么是什么。 #{ids}
+>
+> - 源码分析:
+>
+>   - ```.
+>     MapperProxy.invoke()
+>     方法先判断了该对象是不是Object中声明的方法（tostring，hashcod等等一些） 如果是直接放行 
+>     如果不是执行mapperMethod.execute()方法
+>     paramNameResolver.getNamedParams();
+>     就是给你转map
+>     ```
+
+# resultType
+
+> 配置结果类型。属性可以指定结果集的类型，支持基本类型和实体类类型
+
+# resultMap
+
+> - resultMap标签用于建立查询的列名和实体属性名称的对应关系
+> - 在select标签中使用resultMap属性指定引用即可。
+> - 同时resultMap可以实现将查询结果映射为复杂类型的pojo，比如一对一,一对多,多对多。
+
+# 一对一
+
+> 在resultMap中添加标签association,属性property对应pojo中的属性,javaType对应属性的类型
+
+```java
+<!-- 建立对应关系 -->
+<resultMap type="account" id="accountMap">
+    <id column="aid" property="id"/>
+    <result column="uid" property="uid"/>
+    <result column="money" property="money"/>
+    <!-- 它是用于指定从表方的引用实体属性的 
+		property 对应pojo中的属性
+		javaType 结果pojo地址引用可以缩写
+	-->
+    <association property="user" javaType="com.atguigu.mybatis.bean.user">
+        <id column="id" property="id"/>
+        <result column="username" property="username"/>
+        <result column="sex" property="sex"/>
+        <result column="birthday" property="birthday"/>
+        <result column="address" property="address"/>
+    </association>
+</resultMap>
+<select id="findAll" resultMap="accountMap">
+	select u.*,a.id as aid,a.uid,a.money from account a,user u where a.uid =u.id;
+</select>
+    
+    
+//延时加载
+<resultMap type="com.agzy.day2.bean.EmployeePuls" id="MyEmpByStep">
+        <id column="id" property="id"/>
+        <result column="last_name" property="lastName"/>
+        <result column="email" property="email"/>
+        <result column="gender" property="gender"/>
+        <!-- association定义关联对象的封装规则
+            select:表明当前属性是调用select指定的方法查出的结果
+            column:指定将哪一列的值传给这个方法
+            流程：使用select指定的方法（传入column指定的这列参数的值）查出对象，并封装给property指定的属性
+         -->
+        <association property="dept"
+                     select="com.agzy.day2.dao.DepartmentMapper.getDeptById"
+                     column="d_id">
+        </association>
+</resultMap>
+```
+
+# 一对多
+
+> 在resultMap中添加标签collection,属性property对应pojo中的属性,ofType对应属性的类型也就是list中对象
+
+```java
+<resultMap type="user" id="userMap">
+    <id column="id" property="id"></id>
+    <result column="username" property="username"/>
+    <result column="address" property="address"/>
+    <result column="sex" property="sex"/>
+    <result column="birthday" property="birthday"/>
+    <!-- collection:
+    	部分定义了用户关联的账户信息。表示关联查询结果集
+		property="accList":
+		关联查询的结果集存储在 User 对象的上哪个属性。
+		ofType="account" :指定关联查询的结果集中的对象类型即List中的对象类型。
+		此处可以使用别名，也可以使用全限定名。
+    -->
+    <collection property="accounts" ofType="account">
+        <id column="aid" property="id"/>
+        <result column="uid" property="uid"/>
+        <result column="money" property="money"/>
+    </collection>
+</resultMap>
+<!-- 配置查询所有操作 -->
+<select id="findAll" resultMap="userMap">
+    select u.*,a.id as aid ,a.uid,a.money 
+    from user u 
+    left outer join account a on u.id =a.uid
+</select>
+```
+
+# 延时加载
+
+> 延时加载就是把联表的sql语句进行拆分，在我们调用的时候发送sql
+>
+> 在association，collection中添加select(dao中的查询方法)以及column(你要把什么字段传递给调用的dao)
+>
+> 如果想传递多个参数过去需要这么写column="{key1=column1,key2=column2}"
+>
+> fetchType表示使用延迟加载；lazy(延迟),eager(立即)
+
+# 鉴别器
+
+> 就是swicth 根据数据库字段返回的值执行不同的结果
+
+# Mybatis动态sql有什么用?执行原理?有哪些动态sql?
+
+> 动态拼接sql(trim,where,set,foreach,if,choose,when,otherwise,bind)
+>
+> 使用OGNL从sql参数对象中计算表达式的值，根据表达式的值动态拼接sql，以此来完成动态sql的功能
+
+# 除了select|insert|update|delete标签,还有哪些标签？
+
+> - <resultMap> 封装返回结果与实体映射
+> - <sql> 为sql片段标签
+> - <include> 引入sql片段
+
+
+
+
+
+
+
+# 通常一个Xml映射文件,都会写一个Dao接口与之对应,请问，这个Dao接口的工作原理是什么?Dao接口里的方法,参数不同时,方法能重载吗？
+
+Dao接口即Mapper接口。接口的全限名，就是映射文件中的namespace的值；接口的方法名，就是映射文件中Mapper的Statement的id值；接口方法内的参数，就是传递给sql的参数。
+
+Mapper接口是没有实现类的，当调用接口方法时，接口全限名+方法名拼接字符串作为key值，可唯一定位一个MapperStatement。在Mybatis中，每一个<select>、<insert>、<update>、<delete>标签，都会被解析为一个MapperStatement对象。
+
+举例：com.mybatis3.mappers.StudentDao.findStudentById，可以唯一找到namespace为com.mybatis3.mappers.StudentDao下面 id 为 findStudentById 的 MapperStatement。
+
+Mapper接口里的方法，是不能重载的，因为是使用 全限名+方法名 的保存和寻找策略。**Mapper 接口的工作原理是JDK动态代理，Mybatis运行时会使用JDK动态代理为Mapper接口生成代理对象proxy，代理对象会拦截接口方法，转而执行MapperStatement所代表的sql，然后将sql执行结果返回。**
+
+# Mybatis是如何进行分页的？分页插件的原理是什么？
+
+Mybatis使用RowBounds对象进行分页，它是针对ResultSet结果集执行的内存分页，而非物理分页。可以在sql内直接书写带有物理分页的参数来完成物理分页功能，也可以使用分页插件来完成物理分页。
+
+分页插件的基本原理是使用Mybatis提供的插件接口，实现自定义插件，在插件的拦截方法内拦截待执行的sql，然后重写sql，根据dialect方言，添加对应的物理分页语句和物理分页参数。
+
+# Mybatis是如何将sql执行结果封装为目标对象并返回的？都有哪些映射形式？
+
+第一种是使用<resultMap>标签，逐一定义数据库列名和对象属性名之间的映射关系。
+
+第二种是使用sql列的别名功能，将列的别名书写为对象属性名。
+
+有了列名与属性名的映射关系后，Mybatis通过反射创建对象，同时使用反射给对象的属性逐一赋值并返回，那些找不到映射关系的属性，是无法完成赋值的。
+
+# 如何执行批量插入?
+
+首先,创建一个简单的insert语句:
+
+<insert id="insertname">insert into names (name) values (#{value}) </insert>
+
+然后在java代码中像下面这样执行批处理插入：
+
+list<string> names = new arraylist();
+
+names.add(“fred”); 
+
+names.add(“barney”); 
+
+names.add(“betty”); 
+
+names.add(“wilma”); 
+
+// 注意这里 executortype.batch sqlsession sqlsession = sqlsessionfactory.opensession(executortype.batch); try { namemapper mapper = sqlsession.getmapper(namemapper.class); for (string name : names) { mapper.insertname(name); } sqlsession.commit(); }catch(Exception e){ e.printStackTrace(); sqlSession.rollback(); throw e; } finally { sqlsession.close(); }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+17、Mybatis的Xml映射文件中，不同的Xml映射文件，id是否可以重复？
+
+不同的Xml映射文件，如果配置了namespace，那么id可以重复；如果没有配置namespace，那么id不能重复；
+
+原因就是namespace+id是作为Map<String, MapperStatement>的key使用的，如果没有namespace，就剩下id，那么，id重复会导致数据互相覆盖。有了namespace，自然id就可以重复，namespace不同，namespace+id自然也就不同。
+
+但是，在以前的Mybatis版本的namespace是可选的，不过新版本的namespace已经是必须的了。
+
+
+
+22、Mybatis是否支持延迟加载？如果支持，它的实现原理是什么？
+
+答：Mybatis仅支持association关联对象和collection关联集合对象的延迟加载，association指的就是一对一，collection指的就是一对多查询。在Mybatis配置文件中，可以配置是否启用延迟加载lazyLoadingEnabled=true|false。
+
+它的原理是，使用CGLIB创建目标对象的代理对象，当调用目标方法时，进入拦截器方法，比如调用a.getB().getName()，拦截器invoke()方法发现a.getB()是null值，那么就会单独发送事先保存好的查询关联B对象的sql，把B查询上来，然后调用a.setB(b)，于是a的对象b属性就有值了，接着完成a.getB().getName()方法的调用。这就是延迟加载的基本原理。
+
+当然了，不光是Mybatis，几乎所有的包括Hibernate，支持延迟加载的原理都是一样的。
+
+
+
+24、什么是MyBatis的接口绑定？有哪些实现方式？
+
+接口绑定，就是在MyBatis中任意定义接口,然后把接口里面的方法和SQL语句绑定, 我们直接调用接口方法就可以,这样比起原来了SqlSession提供的方法我们可以有更加灵活的选择和设置。
+
+接口绑定有两种实现方式,一种是通过注解绑定，就是在接口的方法上面加上 @Select、@Update等注解，里面包含Sql语句来绑定；另外一种就是通过xml里面写SQL来绑定, 在这种情况下,要指定xml映射文件里面的namespace必须为接口的全路径名。当Sql语句比较简单时候,用注解绑定, 当SQL语句比较复杂时候,用xml绑定,一般用xml绑定的比较多。
+
+25、使用MyBatis的mapper接口调用时有哪些要求？
+
+①  Mapper接口方法名和mapper.xml中定义的每个sql的id相同；
+②  Mapper接口方法的输入参数类型和mapper.xml中定义的每个sql 的parameterType的类型相同；
+③  Mapper接口方法的输出参数类型和mapper.xml中定义的每个sql的resultType的类型相同；
+④  Mapper.xml文件中的namespace即是mapper接口的类路径。
+
+26、Mapper编写有哪几种方式？
+
+第一种：接口实现类继承SqlSessionDaoSupport：使用此种方法需要编写mapper接口，mapper接口实现类、mapper.xml文件。
+（1）在sqlMapConfig.xml中配置mapper.xml的位置
+<mappers>
+    <mapper resource="mapper.xml文件的地址" />
+    <mapper resource="mapper.xml文件的地址" />
+</mappers>
+（2）定义mapper接口
+（3）实现类集成SqlSessionDaoSupport
+mapper方法中可以this.getSqlSession()进行数据增删改查。
+（4）spring 配置
+<bean id=" " class="mapper接口的实现">
+    <property name="sqlSessionFactory" ref="sqlSessionFactory"></property>
+</bean>
+
+
+第二种：使用org.mybatis.spring.mapper.MapperFactoryBean：
+（1）在sqlMapConfig.xml中配置mapper.xml的位置，如果mapper.xml和mappre接口的名称相同且在同一个目录，这里可以不用配置
+<mappers>
+    <mapper resource="mapper.xml文件的地址" />
+    <mapper resource="mapper.xml文件的地址" />
+</mappers>
+（2）定义mapper接口：
+①mapper.xml中的namespace为mapper接口的地址
+②mapper接口中的方法名和mapper.xml中的定义的statement的id保持一致
+③Spring中定义
+<bean id="" class="org.mybatis.spring.mapper.MapperFactoryBean">
+    <property name="mapperInterface"   value="mapper接口地址" /> 
+    <property name="sqlSessionFactory" ref="sqlSessionFactory" /> 
+</bean>
+
+第三种：使用mapper扫描器：
+（1）mapper.xml文件编写：
+mapper.xml中的namespace为mapper接口的地址；
+mapper接口中的方法名和mapper.xml中的定义的statement的id保持一致；
+如果将mapper.xml和mapper接口的名称保持一致则不用在sqlMapConfig.xml中进行配置。 
+（2）定义mapper接口：
+注意mapper.xml的文件名和mapper的接口名称保持一致，且放在同一个目录
+（3）配置mapper扫描器：
+<bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+    <property name="basePackage" value="mapper接口包地址"></property>
+    <property name="sqlSessionFactoryBeanName" value="sqlSessionFactory"/> 
+</bean>
+（4）使用扫描器后从spring容器中获取mapper的实现对象。
+
+ 
+
+27、简述Mybatis的插件运行原理，以及如何编写一个插件。
+
+答：Mybatis仅可以编写针对ParameterHandler、ResultSetHandler、StatementHandler、Executor这4种接口的插件，Mybatis使用JDK的动态代理，为需要拦截的接口生成代理对象以实现接口方法拦截功能，每当执行这4种接口对象的方法时，就会进入拦截方法，具体就是InvocationHandler的invoke()方法，当然，只会拦截那些你指定需要拦截的方法。
+
+编写插件：实现Mybatis的Interceptor接口并复写intercept()方法，然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，别忘了在配置文件中配置你编写的插件。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+**1. 最佳实践中，通常一个Xml映射文件，都会写一个Dao接口与之对应，请问，这个Dao接口的工作原理是什么？Dao接口里的方法，参数不同时，方法能重载吗？**
+
+　　答：Dao接口，就是人们常说的Mapper接口，接口的全限名，就是映射文件中的namespace的值，接口的方法名，就是映射文件中MappedStatement的id值，接口方法内的参数，就是传递给sql的参数。Mapper接口是没有实现类的，当调用接口方法时，接口全限名+方法名拼接字符串作为key值，可唯一定位一个MappedStatement，举例：com.mybatis3.mappers.StudentDao.findStudentById，可以唯一找到namespace为com.mybatis3.mappers.StudentDao下面id = findStudentById的MappedStatement。在Mybatis中，每一个<select>、<insert>、<update>、<delete>标签，都会被解析为一个MappedStatement对象。
+
+　　**Dao接口里的方法，是不能重载的，因为是全限名+方法名的保存和寻找策略。**
+
+　　**Dao接口的工作原理是JDK动态代理**，Mybatis运行时会使用JDK动态代理为Dao接口生成代理proxy对象，代理对象proxy会拦截接口方法，转而执行MappedStatement所代表的sql，然后将sql执行结果返回。
+
+**2、Mybatis是如何进行分页的？分页插件的原理是什么？**
+
+　　答：Mybatis使用RowBounds对象进行分页，它是针对ResultSet结果集执行的内存分页，而非物理分页，可以在sql内直接书写带有物理分页的参数来完成物理分页功能，也可以使用分页插件来完成物理分页。
+
+　　分页插件的基本原理是使用Mybatis提供的插件接口，实现自定义插件，在插件的拦截方法内拦截待执行的sql，然后重写sql，根据dialect方言，添加对应的物理分页语句和物理分页参数。
+
+举例：select * from student，拦截sql后重写为：select t.* from （select * from student）t limit 0，10
+
+**3、简述Mybatis的插件运行原理，以及如何编写一个插件。**
+
+　　答：Mybatis仅可以编写针对ParameterHandler、ResultSetHandler、StatementHandler、Executor这4种接口的插件，Mybatis使用JDK的动态代理，为需要拦截的接口生成代理对象以实现接口方法拦截功能，每当执行这4种接口对象的方法时，就会进入拦截方法，具体就是InvocationHandler的invoke()方法，当然，只会拦截那些你指定需要拦截的方法。
+
+实现Mybatis的Interceptor接口并复写intercept()方法，然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，别忘了在配置文件中配置你编写的插件。
+
+**4、Mybatis执行批量插入，能返回数据库主键列表吗？**
+
+　　答：能，JDBC都能，Mybatis当然也能。
+
+**6、Mybatis是如何将sql执行结果封装为目标对象并返回的？都有哪些映射形式？**
+
+　　答：第一种是使用<resultMap>标签，逐一定义列名和对象属性名之间的映射关系。第二种是使用sql列的别名功能，将列别名书写为对象属性名，比如T_NAME AS NAME，对象属性名一般是name，小写，但是列名不区分大小写，Mybatis会忽略列名大小写，智能找到与之对应对象属性名，你甚至可以写成T_NAME AS NaMe，Mybatis一样可以正常工作。
+
+　　有了列名与属性名的映射关系后，Mybatis通过反射创建对象，同时使用反射给对象的属性逐一赋值并返回，那些找不到映射关系的属性，是无法完成赋值的。
+
+
+
+
+
+**9、Mybatis的Xml映射文件中，不同的Xml映射文件，id是否可以重复？**
+
+答：不同的Xml映射文件，如果配置了namespace，那么id可以重复；如果没有配置namespace，那么id不能重复；毕竟namespace不是必须的，只是最佳实践而已。
+
+原因就是namespace+id是作为Map<String, MappedStatement>的key使用的，如果没有namespace，就剩下id，那么，id重复会导致数据互相覆盖。有了namespace，自然id就可以重复，namespace不同，namespace+id自然也就不同。
+
+**10、Mybatis中如何执行批处理？**
+
+答：使用BatchExecutor完成批处理。
+
+**11、Mybatis都有哪些Executor执行器？它们之间的区别是什么？**
+
+答：Mybatis有三种基本的Executor执行器，**SimpleExecutor、ReuseExecutor、BatchExecutor。**
+
+**SimpleExecutor：**每执行一次update或select，就开启一个Statement对象，用完立刻关闭Statement对象。
+
+**ReuseExecutor：**执行update或select，以sql作为key查找Statement对象，存在就使用，不存在就创建，用完后，不关闭Statement对象，而是放置于Map<String, Statement>内，供下一次使用。简言之，就是重复使用Statement对象。
+
+**BatchExecutor：**执行update（没有select，JDBC批处理不支持select），将所有sql都添加到批处理中（addBatch()），等待统一执行（executeBatch()），它缓存了多个Statement对象，每个Statement对象都是addBatch()完毕后，等待逐一执行executeBatch()批处理。与JDBC批处理相同。
+
+作用范围：Executor的这些特点，都严格限制在SqlSession生命周期范围内。
+
+**12、Mybatis中如何指定使用哪一种Executor执行器？**
+
+答：在Mybatis配置文件中，可以指定默认的ExecutorType执行器类型，也可以手动给DefaultSqlSessionFactory的创建SqlSession的方法传递ExecutorType类型参数。
+
+**13、Mybatis是否可以映射Enum枚举类？**
+
+答：Mybatis可以映射枚举类，不单可以映射枚举类，Mybatis可以映射任何对象到表的一列上。映射方式为自定义一个TypeHandler，实现TypeHandler的setParameter()和getResult()接口方法。TypeHandler有两个作用，一是完成从javaType至jdbcType的转换，二是完成jdbcType至javaType的转换，体现为setParameter()和getResult()两个方法，分别代表设置sql问号占位符参数和获取列查询结果。
+
+**14、Mybatis映射文件中，如果A标签通过include引用了B标签的内容，请问，B标签能否定义在A标签的后面，还是说必须定义在A标签的前面？**
+
+答：虽然Mybatis解析Xml映射文件是按照顺序解析的，但是，被引用的B标签依然可以定义在任何地方，Mybatis都可以正确识别。
+
+原理是，Mybatis解析A标签，发现A标签引用了B标签，但是B标签尚未解析到，尚不存在，此时，Mybatis会将A标签标记为未解析状态，然后继续解析余下的标签，包含B标签，待所有标签解析完毕，Mybatis会重新解析那些被标记为未解析的标签，此时再解析A标签时，B标签已经存在，A标签也就可以正常解析完成了。
+
+**15、简述Mybatis的Xml映射文件和Mybatis内部数据结构之间的映射关系？**
+
+答：Mybatis将所有Xml配置信息都封装到All-In-One重量级对象Configuration内部。在Xml映射文件中，<parameterMap>标签会被解析为ParameterMap对象，其每个子元素会被解析为ParameterMapping对象。<resultMap>标签会被解析为ResultMap对象，其每个子元素会被解析为ResultMapping对象。每一个<select>、<insert>、<update>、<delete>标签均会被解析为MappedStatement对象，标签内的sql会被解析为BoundSql对象。
+
+
+
+**19. Mybatis动态sql是做什么的？都有哪些动态sql？能简述一下动态sql的执行原理不？**
+
+- Mybatis动态sql可以让我们在Xml映射文件内，**以标签的形式编写动态sql，完成逻辑判断和动态拼接sql的功能**。
+- Mybatis提供了9种动态sql标签：trim|where|set|foreach|if|choose|when|otherwise|bind。
+- 。
+
+**20. Mybatis的Xml映射文件中，不同的Xml映射文件，id是否可以重复？**
+
+　　**如果配置了namespace那么当然是可以重复的，因为我们的Statement实际上就是namespace+id**
+
+　　如果没有配置namespace的话，那么相同的id就会导致覆盖了。
+
+**21**. 接口绑定有几种实现方式,分别是怎么实现的?
+
+　　接口绑定有两种实现方式：
+
+- 一种是通过注解绑定,就是在接口的方法上面加上@Select@Update等注解里面包含Sql语句来绑定
+- 另外一种就是通过xml里面写SQL来绑定,在这种情况下,要指定xml映射文件里面的namespace必须为接口的全路径名.
+
+**22. Mybatis是如何进行分页的？分页插件的原理是什么？**
+
+　　Mybatis使用RowBounds对象进行分页，它是针对ResultSet结果集执行的内存分页，而非物理分页，可以在sql内直接书写带有物理分页的参数来完成物理分页功能，也可以使用分页插件来完成物理分页。
+
+**23. 分页插件的基本原理是使用Mybatis提供的插件接口，实现自定义插件，在插件的拦截方法内拦截待执行的sql，然后重写sql，根据dialect方言，添加对应的物理分页语句和物理分页参数。**
+
+举例：
+
+```
+select * from student，拦截sql后重写为：select t.* from （select * from student）t limit 0，10
+```
+
+ 
+
+**24**. 简述Mybatis的插件运行原理，以及如何编写一个插件
+
+　　Mybatis仅可以**编写针对ParameterHandler、ResultSetHandler、StatementHandler、Executor这4种接口的插件，Mybatis使用JDK的动态代理，为需要拦截的接口生成代理对象以实现接口方法拦截功能**，每当执行这4种接口对象的方法时，就会进入拦截方法，具体就是InvocationHandler的invoke()方法，当然，只会拦截那些你指定需要拦截的方法。
+
+　　实现Mybatis的Interceptor接口并复写intercept()方法，**然后在给插件编写注解，指定要拦截哪一个接口的哪些方法即可，记住，别忘了在配置文件中配置你编写的插件。**
+
+
+
+
+
+# mybatis学习知识点
+
+## 1.typeAliases别名处理器
+
+> 类型别名是为 Java类型设置一个比较短的名字,可以方便我们引用某个类
+>
+> 其实也就是resultType的返回值
+
+```java
+//案例 resultType里面的返回值太长了。
+<select id="getEmpById" resultType="com.agzy.day1.bean.Employee">
+	select * from tbl_employee where id = #{id}
+</select>
+```
+
+```java
+<configuration>
+    <!-- 3、typeAliases：别名处理器：可以为我们的java类型起别名,别名不区分大小写-->
+    <typeAliases>
+        <!-- 1、typeAlias:为某一个javaBean起别名:{
+                  type:指定要起别名的类型全类名;默认别名就是类名小写；employee
+                  alias:指定新的别名
+                }-->
+         <typeAlias type="com.agzy.day1.bean.Employee" alias="emp"/>
+
+        <!-- 2、package:为某个包下的所有类批量起别名{
+                  name：指定包名（别名是类名的小写）
+                }-->
+        <package name="com.agzy.day1.bean"/>
+        <!-- 3、批量起别名的情况下，使用@Alias注解为某个类型指定新的别名 -->
+        /**
+         *  @Alias("emp1111")
+		 *  public class Employee {}
+		 */
+    </typeAliases>
+</configuration>
+```
+
+> 值得注意的是,MyBatis已经为许多常见的 Java 类型内建了相应的类型别名。
+>
+> 它们都是大小写不敏感的,我们在起别名的时候千万不要占用已有的别名。
+
+|    别名    | 映射的类型 |
+| :--------: | :--------: |
+|   _byte    |    byte    |
+|   _long    |    long    |
+|   _short   |   short    |
+|    _int    |    int     |
+|  _integer  |    int     |
+|  _double   |   double   |
+|   _float   |   float    |
+|  _boolean  |  boolean   |
+|   string   |   String   |
+|    byte    |    Byte    |
+|    long    |    Long    |
+|   short    |   Short    |
+|    int     |  Integer   |
+|  integer   |  Integer   |
+|   double   |   Double   |
+|   float    |   Float    |
+|  boolean   |  Boolean   |
+|    date    |    Date    |
+|  decimal   | BigDecimal |
+| bigdecimal | BigDecimal |
+|   object   |   Object   |
+|    map     |    Map     |
+|  hashmap   |  HashMap   |
+|    list    |    List    |
+| arraylist  | ArrayList  |
+| collection | Collection |
+|  iterator  |  Iterator  |
+
+## 2.typeHandlers自定义类型处理
+
+> 我们可以重写类型处理器或创建自己的类型处理器来处理不支持的或非标准的类型。
+>
+> <typeHandlers>
+>
+> ​	<typeHandler handler="java.time.LocalDateTime" />
+>
+> </typeHandlers>
+>
+> 上边的案例是在3.4版本之前没做处理的如果我们想使用需要自己注册一个。
+>
+> 然后我们实体类型就可以是 private LocalDateTime createTime了。
+>
+> 3.5已经实现了
+
+## 3.plugins插件
+
+>  插件是MyBatis提供的一个非常强大的机制，我们可以通过插件来修改MyBatis的一些核心行为。
+>
+> 插件通过动态代理机制，可以介入四大对象的任何一个方法的执行。
+>
+> - **Executor** (update, query, flushStatements, commit, rollback, getTransaction, close, isClosed)
+>   - **执行器** 我们可以再执行查询以及增删改时改变一下mybatis的默认行为达到我们的自定义效果
+> - **ParameterHandler** (getParameterObject, setParameters) 
+>   - **参数处理器** sql语句预编译时使用他来做，**入参**
+> -  **ResultSetHandler** (handleResultSets, handleOutputParameters) 
+>   - **结果集处理器**   返回值处理的
+> -  **StatementHandler** (prepare, parameterize, batch, update, query)
+>   - **sql 语句处理器**
+
+## 4.mybatis可以支持多环境配置
+
+```java
+<environments default="dev_mysql">
+	<environment id="dev_mysql">
+		<transactionManager type="JDBC"></transactionManager>
+		<dataSource type="POOLED">
+			<property name="driver" value="${jdbc.driver}" />
+			<property name="url" value="${jdbc.url}" />
+			<property name="username" value="${jdbc.username}" />
+			<property name="password" value="${jdbc.password}" />
+		</dataSource>
+	</environment>
+	
+	<environment id="dev_oracle">
+		<transactionManager type="JDBC" />
+		<dataSource type="POOLED">
+			<property name="driver" value="${orcl.driver}" />
+			<property name="url" value="${orcl.url}" />
+			<property name="username" value="${orcl.username}" />
+			<property name="password" value="${orcl.password}" />
+		</dataSource>
+	</environment>
+</environments>
+```
+
+## 5.mybatis可以根据不同的数据库执行不同的sql
+
+> mysql和orace sql语句不一样所以我们需要根据不同的数据库执行不同的sql语句
+>
+> 数据库驱动中有个方法可以获取标识 **getDatabaseProductName()**
+
+```xml
+<!-- mybatis-config配置 -->
+<databaseIdProvider type="DB_VENDOR">
+		<!-- 为不同的数据库厂商起别名 -->
+		<property name="MySQL" value="mysql"/>
+		<property name="Oracle" value="oracle"/>
+     	<property name="DB2" value="db2"/>
+		<property name="SQL Server" value="sqlserver"/>
+</databaseIdProvider>
+```
+
+```xml
+<!-- mapper具体配置 -->
+<!-- mysql -->
+<select id="getEmpById" resultType="com.luftraveler.mybatis.config.bean.Employee"
+		databaseId="mysql">
+		select * from tbl_employee where id = #{id}
+</select>
+<!-- oracle -->
+<select id="getEmpById" resultType="com.luftraveler.mybatis.config.bean.Employee"
+		databaseId="oracle">
+		select EMPLOYEE_ID id,LAST_NAME	lastName,EMAIL email 
+		from employees where EMPLOYEE_ID=#{id}
+</select>
+```
+
+## 6.mapper映射方式
+
+> - 直接指定xml在resources的地址
+>
+>   - ```xml
+>     <!-- 使用相对于类路径的资源引用 -->
+>     <mappers>
+>       <mapper resource="org/mybatis/builder/AuthorMapper.xml"/>
+>       <mapper resource="org/mybatis/builder/BlogMapper.xml"/>
+>       <mapper resource="org/mybatis/builder/PostMapper.xml"/>
+>     </mappers>
+>     ```
+>
+> - 指定文件盘符或者一个网络路径
+>
+>   - ```xml
+>     <!-- 使用完全限定资源定位符（URL） -->
+>     <mappers>
+>       <mapper url="file:///var/mappers/AuthorMapper.xml"/>
+>       <mapper url="file:///var/mappers/BlogMapper.xml"/>
+>       <mapper url="file:///var/mappers/PostMapper.xml"/>
+>     </mappers>
+>     ```
+>
+> - 使用mapper接口类的完全限定类名
+>
+>   - ```xml
+>     <!-- 使用映射器接口实现类的完全限定类名 -->
+>     <mappers>
+>       <mapper class="org.mybatis.builder.AuthorMapper"/>
+>       <mapper class="org.mybatis.builder.BlogMapper"/>
+>       <mapper class="org.mybatis.builder.PostMapper"/>
+>     </mappers>
+>     ```
+>
+> - 指定一个mapper接口的包去批量引入
+>
+>   - ```xml
+>     <!-- 将包内的映射器接口实现全部注册为映射器 -->
+>     <mappers>
+>       <package name="org.mybatis.builder"/>
+>     </mappers>
+>     ```
+>
+> - 这些配置会告诉 MyBatis 去哪里找映射文件
+# 了解:什么是ORM
+
+> - 即Object-Relationl Mapping,它的作用是在关系型数据库和对象之间作一个映射。
+> - 这样,我们在具体的操作数据库的时候,就不需要再去和复杂的SQL语句打交道。
+> - 只要像平时操作对象一样操作它就可以了 。
+
+# 了解:什么是Mybatis？
+
+> - Mybatis是一个半ORM框架,它内部提供了对JDBC的封装。
+> - 开发时我们只需要关注sql本身。
+> - 而不需要花费精力去处理加载驱动、创建连接、创建statement等繁杂的过程。
+> - 直接编写原生态sql,可以严格控制sql执行性能,灵活度高。
+
+> - MyBatis可以使用XML或注解来配置和映射原生信息,将POJO映射成数据库中的记录。
+> - 避免了几乎所有的 JDBC代码和手动设置参数以及获取结果集。
+
+> - 通过xml文件或注解的方式将要执行的各种statement配置起来。
+> - 并通过java对象和statement中sql的动态参数进行映射生成最终执行的sql语句。
+> - 最后由mybatis框架执行sql并将结果映射为java对象并返回(从执行sql到返回result的过程)。
+
+# 了解:Mybaits的优点：
+
+> - 基于SQL语句编程,相当灵活,不会对现有的应用程序和数据库设计造成影响,SQL写在XML里,j解决sql与代码的耦合,便于统一管理。提供XML标签,支持编写动态SQL语句,并可重用。
+> - 与JDBC相比,减少了代码量,消除了JDBC中大量冗余的代码,不需要手动开关连接；
+> - 很好的与各种数据库兼容（因为MyBatis使用JDBC来连接数据库，所以只要JDBC支持的数据库MyBatis都支持）。
+> - 能够与Spring很好的集成；
+> - 提供映射标签,支持对象与数据库的ORM字段关系映射；提供对象关系映射标签,支持对象关系组件维护。
+
+# 了解:MyBatis框架的缺点：
+
+> - SQL依赖数据库,导致数据库移植性差,不能随意更换数据库。
+
+# 了解:MyBatis框架适用场合：
+
+> - MyBatis专注于SQL本身,是一个足够灵活的DAO层解决方案。
+> - 性能的要求比较高，需求变化较多的项目，如互联网项目，MyBatis将是不错的选择。
+
+# 了解:MyBatis与Hibernate有哪些不同？
+
+> - mybatis他不完全是一个ORM框架,因为mybatis需要我们自己写sql,适合对关系数据模型要求不高的软件开发。
+> - mybatis无法做到数据库无关性,如果需要实现支持多种数据库的软件,则需要自定义多套sql映射文件,工作量大。
+> - Hibernate对象/关系映射能力强,数据库无关性好,适合关系模型要求高的软件,可以节省很多代码，提高效率。
+
 # #{}和${}的区别是什么？
 
 #{}:是预编译处理,会将sql中的#{}替换为?号,防止sql注入;
